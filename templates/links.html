@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uploaded File Links</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="shortcut icon" href="https://i.postimg.cc/sX93H6sg/android-icon-144x144.png" type="image/png">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 10px;
+            background-color: #f0f2f5;
+        }
+        .link-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .link-box {
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            gap: 12px;
+        }
+        .link-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .link-box a {
+            text-decoration: none;
+            color: #1877f2;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+        .copy-btn {
+            cursor: pointer;
+            color: #1877f2;
+            background: none;
+            border: none;
+            padding: 8px;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        .copy-btn:hover {
+            background-color: #f0f2f5;
+            border-radius: 5px;
+        }
+        .info {
+            font-size: 12px;
+            color: #65676b;
+            margin-top: 4px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .info i {
+            margin-right: 4px;
+            width: 14px;
+            text-align: center;
+        }
+        .pagination {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+        }
+        .pagination a {
+            color: #1877f2;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* Copy message */
+        .copy-message {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 5px;
+            font-size: 14px;
+            display: none;
+            animation: fadeInOut 3s ease-in-out;
+        }
+        
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        
+        @media (max-width: 480px) {
+            .link-box {
+                padding: 10px;
+            }
+            .link-box a {
+                font-size: 13px;
+            }
+            .info {
+                font-size: 11px;
+            }
+            .copy-btn {
+                font-size: 14px;
+                padding: 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h2 style="text-align: center; color: #1c1e21; margin-bottom: 20px;">Uploaded File Links</h2>
+    <div class="link-container">
+        {% for link in links %}
+        <div class="link-box">
+            <div class="link-content">
+                <a href="{{ link.url }}" target="_blank">{{ link.url.split('/uploads')[1] }}</a>
+                <div class="info">
+                    <span>
+                        <i class="fas fa-clock"></i>
+                        {{ link.time }}
+                    </span>
+                    <span>
+                        <i class="fas fa-globe-asia"></i>
+                        {{ link.ip }}
+                    </span>
+                </div>
+            </div>
+            <button class="copy-btn" onclick="copyToClipboard('{{ link.url }}')">
+                <i class="far fa-copy"></i>
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="pagination">
+        {% if prev_page %}
+            <a href="{{ url_for('get_links_html', page=prev_page) }}">← Previous</a>
+        {% endif %}
+        {% if next_page %}
+            <a href="{{ url_for('get_links_html', page=next_page) }}">Next →</a>
+        {% endif %}
+    </div>
+
+    <!-- Copy Message -->
+    <div class="copy-message" id="copyMessage">Link copied!</div>
+
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                let message = document.getElementById("copyMessage");
+                message.style.display = "block";
+                setTimeout(() => {
+                    message.style.display = "none";
+                }, 3000);
+            });
+        }
+    </script>
+</body>
+</html>
