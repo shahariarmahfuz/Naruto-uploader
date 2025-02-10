@@ -1,4 +1,6 @@
 Flask
+pytz
+requests
 Pillow
 pyheif
-requests
+gunicorn
