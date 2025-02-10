@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #3b82f6;
+            --text-color: #2c3e50;
+            --background-color: #f8fafc;
+            --shadow-color: rgba(0,0,0,0.1);
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px var(--shadow-color);
+            text-align: center;
+            width: 400px;
+        }
+        h2 {
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+        }
+        .upload-area {
+            border: 2px dashed var(--primary-color);
+            padding: 40px;
+            border-radius: 12px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 2rem;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: var(--secondary-color);
+        }
+        .upload-area i {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        .upload-area span {
+            color: #7f8c8d;
+        }
+        #fileElem {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-info {
+            margin-top: 1rem;
+            color: var(--text-color);
+        }
+        .progress-bar {
+            height: 8px;
+            background: var(--primary-color);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+            margin-top: 1rem;
+            display: none;
+        }
+        .uploaded-file {
+            margin-top: 2rem;
+            display: none;
+            text-align: left;
+        }
+        .upload-btn {
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-top: 1rem;
+            display: none;
+        }
+        .upload-btn:hover {
+            background-color: var(--secondary-color);
+        }
+        .file-link-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 1rem;
+        }
+        .file-link-container input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .file-link-container button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--primary-color);
+            font-size: 1.2rem;
+            transition: color 0.3s;
+        }
+        .file-link-container button:hover {
+            color: var(--secondary-color);
+        }
+        @media (max-width: 450px) {
+            .container {
+                width: 90%;
+                padding: 30px;
+            }
+            .upload-area {
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>File Upload</h2>
+    <div class="upload-area" id="uploadArea">
+        <i class="fas fa-cloud-upload-alt"></i>  
+        <span>Click to select file</span>
+        <input type="file" id="fileElem">
+    </div>
+    <button class="upload-btn" id="uploadBtn">Upload File</button>
+    <div class="file-info" id="fileInfo"></div>
+    <div class="progress-bar" id="progressBar"></div>
+    <div class="uploaded-file" id="uploadedFile">
+        <div class="file-link-container">
+            <input type="text" id="fileLink" readonly> 
+            <button id="copyButton" title="Copy URL">
+                <i class="fas fa-copy"></i>
+            </button>
+        </div>
+        <p><a href="#" id="viewLink" target="_blank">View file</a></p>
+    </div>
+</div>
+
+<script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileElem = document.getElementById('fileElem');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInfo = document.getElementById('fileInfo');
+    const progressBar = document.getElementById('progressBar');
+    const uploadedFile = document.getElementById('uploadedFile');
+    const fileLink = document.getElementById('fileLink');
+    const viewLink = document.getElementById('viewLink');
+    const copyButton = document.getElementById('copyButton');
+    let selectedFile = null;
+
+    // Helper function to format file size
+    function formatFileSize(bytes) {
+        if (bytes < 1024) {
+            return bytes + ' bytes';
+        } else if (bytes < 1024 * 1024) {
+            return (bytes / 1024).toFixed(2) + ' KB';
+        } else if (bytes < 1024 * 1024 * 1024) {
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        } else {
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+    }
+
+    // File selection handler
+    const handleFileSelect = (file) => {
+        if (!file) return;
+        
+        selectedFile = file;
+        fileInfo.textContent = `Selected File: ${file.name} (${formatFileSize(file.size)})`;
+        uploadBtn.style.display = 'inline-block';
+        uploadedFile.style.display = 'none';
+    };
+
+    // File input change
+    fileElem.addEventListener('change', (e) => {
+        handleFileSelect(e.target.files[0]);
+    });
+
+    // Drag and drop handlers
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('highlight');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('highlight');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('highlight');
+        handleFileSelect(e.dataTransfer.files[0]);
+    });
+
+    // Upload button click
+    uploadBtn.addEventListener('click', () => {
+        if (!selectedFile) return;
+
+        progressBar.style.display = 'block';
+        progressBar.style.width = '0%';
+        uploadBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        // Simulated upload progress
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 10;
+            progressBar.style.width = `${progress}%`;
+            if (progress >= 100) clearInterval(interval);
+        }, 200);
+
+        // Actual upload request
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            clearInterval(interval);
+            progressBar.style.width = '100%';
+            
+            setTimeout(() => {
+                progressBar.style.display = 'none';
+                uploadBtn.style.display = 'none';
+                uploadedFile.style.display = 'block';
+                fileLink.value = data.url;
+                viewLink.href = data.url;
+            }, 300);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            fileInfo.textContent = "Upload failed. Please try again.";
+            uploadBtn.disabled = false;
+        });
+    });
+
+    // Copy URL functionality
+    copyButton.addEventListener('click', () => {
+        fileLink.select();
+        navigator.clipboard.writeText(fileLink.value)
+            .then(() => {
+                copyButton.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => {
+                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                }, 2000);
+            })
+            .catch(err => {
+                console.error('Copy failed:', err);
+                copyButton.innerHTML = '<i class="fas fa-times"></i>';
+                setTimeout(() => {
+                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                }, 2000);
+            });
+    });
+</script>
+
+</body>
+</html>
