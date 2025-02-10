@@ -1,9 +1,11 @@
 import os
-import uuid
 import time
 import requests
 import random
 import string
+import json
+import pytz
+from datetime import datetime
 from flask import Flask, render_template, request, send_from_directory, url_for, jsonify
 from PIL import Image
 import pyheif
@@ -14,12 +16,24 @@ app = Flask(__name__)
 # Configuration
 app.config['UPLOAD_FOLDER_VIDEOS'] = 'uploads/videos'
 app.config['UPLOAD_FOLDER_IMAGES'] = 'uploads/images'
+app.config['LINKS_FILE'] = 'link.json'
+app.config['ITEMS_PER_PAGE'] = 20
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['ALLOWED_EXTENSIONS_VIDEO'] = {'mp4', 'avi', 'mov', 'mkv'}
 app.config['ALLOWED_EXTENSIONS_IMAGE'] = {'jpg', 'jpeg', 'png', 'gif', 'heic'}
-app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 os.makedirs(app.config['UPLOAD_FOLDER_VIDEOS'], exist_ok=True)
 os.makedirs(app.config['UPLOAD_FOLDER_IMAGES'], exist_ok=True)
+
+def load_links():
+    if os.path.exists(app.config['LINKS_FILE']):
+        with open(app.config['LINKS_FILE'], 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_links(links):
+    with open(app.config['LINKS_FILE'], 'w', encoding='utf-8') as f:
+        json.dump(links, f, indent=4, ensure_ascii=False)
 
 def allowed_file(filename):
     ext = filename.rsplit('.', 1)[1].lower()
@@ -27,11 +41,11 @@ def allowed_file(filename):
 
 def generate_unique_id():
     letters = string.ascii_uppercase
-    part1 = ''.join(random.choice(letters) for _ in range(4))
-    part2 = ''.join(random.choice(letters) for _ in range(4))
-    part3 = ''.join(random.choice(letters) for _ in range(4))
-    part4 = f"{random.randint(0, 9999):04d}"
-    return f"{part1}-{part2}-{part3}-{part4}"
+    return '-'.join([''.join(random.choice(letters) for _ in range(4)) for _ in range(3)]) + f"-{random.randint(0, 9999):04d}"
+
+def get_bangladesh_time():
+    bd_tz = pytz.timezone("Asia/Dhaka")
+    return datetime.now(bd_tz).strftime("%Y-%m-%d %I:%M %p")
 
 @app.route('/')
 def index():
@@ -52,6 +66,8 @@ def handle_upload():
     ext = file.filename.rsplit('.', 1)[1].lower()
     unique_id = generate_unique_id()
     new_filename = f"{unique_id}.{ext}"
+    client_ip = request.remote_addr  # IP Address
+    upload_time = get_bangladesh_time()  # BD Time
 
     if ext == 'heic':
         try:
@@ -81,12 +97,35 @@ def handle_upload():
         _external=True
     )
 
+    # Save link with time and IP
+    links = load_links()
+    links.insert(0, {"url": file_url, "type": file_type, "id": unique_id, "time": upload_time, "ip": client_ip})
+    save_links(links)
+
     return jsonify({'url': file_url, 'type': file_type})
 
 @app.route('/uploads/<folder>/<filename>')
 def serve_file(folder, filename):
     directory = app.config[f'UPLOAD_FOLDER_{folder.upper()}']
     return send_from_directory(directory, filename)
+
+@app.route('/link', methods=['GET'])
+def get_links_html():
+    page = request.args.get('page', 1, type=int)
+    links = load_links()
+    
+    start = (page - 1) * app.config['ITEMS_PER_PAGE']
+    end = start + app.config['ITEMS_PER_PAGE']
+    paginated_links = links[start:end]
+
+    next_page = page + 1 if end < len(links) else None
+    prev_page = page - 1 if page > 1 else None
+
+    return render_template('links.html', 
+                           links=paginated_links, 
+                           current_page=page, 
+                           next_page=next_page, 
+                           prev_page=prev_page)
 
 @app.route('/ping', methods=['GET'])
 def ping():
