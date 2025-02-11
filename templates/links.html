@@ -43,17 +43,26 @@
             text-overflow: ellipsis;
             display: block;
         }
-        .copy-btn {
+        .copy-btn, .delete-btn {
             cursor: pointer;
-            color: #1877f2;
             background: none;
             border: none;
             padding: 8px;
             font-size: 16px;
             transition: background 0.2s;
         }
+        .copy-btn {
+            color: #1877f2;
+        }
+        .delete-btn {
+            color: #ff4444;
+        }
         .copy-btn:hover {
             background-color: #f0f2f5;
+            border-radius: 5px;
+        }
+        .delete-btn:hover {
+            background-color: #ffe6e6;
             border-radius: 5px;
         }
         .info {
@@ -83,8 +92,6 @@
             background: white;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
-
-        /* Copy message */
         .copy-message {
             position: fixed;
             bottom: 20px;
@@ -98,14 +105,12 @@
             display: none;
             animation: fadeInOut 3s ease-in-out;
         }
-        
         @keyframes fadeInOut {
             0% { opacity: 0; }
             10% { opacity: 1; }
             90% { opacity: 1; }
             100% { opacity: 0; }
         }
-        
         @media (max-width: 480px) {
             .link-box {
                 padding: 10px;
@@ -116,10 +121,79 @@
             .info {
                 font-size: 11px;
             }
-            .copy-btn {
+            .copy-btn, .delete-btn {
                 font-size: 14px;
                 padding: 6px;
             }
+        }
+
+        /* Confirm Modal Styles */
+        .confirm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .confirm-content {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            text-align: center;
+        }
+
+        .confirm-content h3 {
+            margin: 0 0 15px 0;
+            color: #1c1e21;
+            font-size: 20px;
+        }
+
+        .confirm-content p {
+            color: #606770;
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .confirm-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .confirm-cancel {
+            background: #e4e6eb;
+            color: #1c1e21;
+        }
+
+        .confirm-cancel:hover {
+            background: #d8dadf;
+        }
+
+        .confirm-delete {
+            background: #ff4444;
+            color: white;
+        }
+
+        .confirm-delete:hover {
+            background: #cc0000;
         }
     </style>
 </head>
@@ -144,10 +218,12 @@
             <button class="copy-btn" onclick="copyToClipboard('{{ link.url }}')">
                 <i class="far fa-copy"></i>
             </button>
+            <button class="delete-btn" onclick="confirmDelete('{{ link.id }}')">
+                <i class="fas fa-trash"></i>
+            </button>
         </div>
         {% endfor %}
     </div>
-
     <div class="pagination">
         {% if prev_page %}
             <a href="{{ url_for('get_links_html', page=prev_page) }}">← Previous</a>
@@ -160,6 +236,31 @@
     <!-- Copy Message -->
     <div class="copy-message" id="copyMessage">Link copied!</div>
 
+    <!-- Custom Confirm Modal -->
+    <div class="confirm-modal" id="confirmModal">
+        <div class="confirm-content">
+            <h3>Delete File</h3>
+            <p>Are you sure you want to delete this file?</p>
+            <div class="confirm-buttons">
+                <button class="confirm-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button class="confirm-delete" onclick="proceedDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
     <script>
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
@@ -170,6 +271,49 @@
                 }, 3000);
             });
         }
+
+        let deleteId = null;
+
+        function confirmDelete(id) {
+            deleteId = id;
+            const modal = document.getElementById('confirmModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirmModal');
+            modal.style.display = 'none';
+            deleteId = null;
+        }
+
+        function proceedDelete() {
+            if (!deleteId) return;
+            
+            fetch(`/delete/${deleteId}`, {
+                method: 'POST',
+            }).then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                }
+            });
+            
+            closeConfirmModal();
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('confirmModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeConfirmModal();
+            }
+        });
+
+        // Flash messages fade out
+        setTimeout(() => {
+            let flashMessages = document.getElementById('flash-messages');
+            if (flashMessages) {
+                flashMessages.style.display = 'none';
+            }
+        }, 5000);
     </script>
 </body>
 </html>
