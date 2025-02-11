@@ -29,6 +29,11 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             gap: 12px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .link-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
         .link-content {
             flex: 1;
@@ -43,7 +48,7 @@
             text-overflow: ellipsis;
             display: block;
         }
-        .copy-btn, .delete-btn {
+        .view-btn, .copy-btn, .delete-btn {
             cursor: pointer;
             background: none;
             border: none;
@@ -51,11 +56,18 @@
             font-size: 16px;
             transition: background 0.2s;
         }
+        .view-btn {
+            color: #00c851;
+        }
         .copy-btn {
             color: #1877f2;
         }
         .delete-btn {
             color: #ff4444;
+        }
+        .view-btn:hover {
+            background-color: #e6f7ec;
+            border-radius: 5px;
         }
         .copy-btn:hover {
             background-color: #f0f2f5;
@@ -91,6 +103,13 @@
             border-radius: 8px;
             background: white;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+        .pagination a:hover {
+            background: #f0f2f5;
         }
         .copy-message {
             position: fixed;
@@ -121,13 +140,12 @@
             .info {
                 font-size: 11px;
             }
-            .copy-btn, .delete-btn {
+            .view-btn, .copy-btn, .delete-btn {
                 font-size: 14px;
                 padding: 6px;
             }
         }
 
-        /* Confirm Modal Styles */
         .confirm-modal {
             display: none;
             position: fixed;
@@ -209,13 +227,12 @@
                         <i class="fas fa-clock"></i>
                         {{ link.time }}
                     </span>
-                    <span>
-                        <i class="fas fa-globe-asia"></i>
-                        {{ link.ip }}
-                    </span>
                 </div>
             </div>
-            <button class="copy-btn" onclick="copyToClipboard('{{ link.url }}')">
+            <button class="view-btn" onclick="window.open('{{ link.url }}', '_blank')">
+                <i class="fas fa-eye"></i>
+            </button>
+            <button class="copy-btn" id="copyBtn{{ link.id }}" onclick="copyToClipboard('{{ link.url }}', '{{ link.id }}')">
                 <i class="far fa-copy"></i>
             </button>
             <button class="delete-btn" onclick="confirmDelete('{{ link.id }}')">
@@ -226,17 +243,21 @@
     </div>
     <div class="pagination">
         {% if prev_page %}
-            <a href="{{ url_for('get_links_html', page=prev_page) }}">← Previous</a>
+            <a href="{{ url_for('get_links_html', page=prev_page) }}">
+                <i class="fas fa-chevron-left"></i>
+                Previous
+            </a>
         {% endif %}
         {% if next_page %}
-            <a href="{{ url_for('get_links_html', page=next_page) }}">Next →</a>
+            <a href="{{ url_for('get_links_html', page=next_page) }}">
+                Next
+                <i class="fas fa-chevron-right"></i>
+            </a>
         {% endif %}
     </div>
 
-    <!-- Copy Message -->
     <div class="copy-message" id="copyMessage">Link copied!</div>
 
-    <!-- Custom Confirm Modal -->
     <div class="confirm-modal" id="confirmModal">
         <div class="confirm-content">
             <h3>Delete File</h3>
@@ -248,7 +269,6 @@
         </div>
     </div>
 
-    <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             <div id="flash-messages">
@@ -262,12 +282,14 @@
     {% endwith %}
 
     <script>
-        function copyToClipboard(text) {
+        function copyToClipboard(text, id) {
             navigator.clipboard.writeText(text).then(() => {
-                let message = document.getElementById("copyMessage");
-                message.style.display = "block";
+                let copyBtn = document.getElementById(`copyBtn${id}`);
+                copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                copyBtn.disabled = true;
                 setTimeout(() => {
-                    message.style.display = "none";
+                    copyBtn.innerHTML = '<i class="far fa-copy"></i>';
+                    copyBtn.disabled = false;
                 }, 3000);
             });
         }
@@ -300,14 +322,12 @@
             closeConfirmModal();
         }
 
-        // Close modal when clicking outside
         document.getElementById('confirmModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeConfirmModal();
             }
         });
 
-        // Flash messages fade out
         setTimeout(() => {
             let flashMessages = document.getElementById('flash-messages');
             if (flashMessages) {
