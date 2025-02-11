@@ -12,13 +12,13 @@ import pyheif
 from threading import Thread
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # ফ্লাস্কের জন্য সিক্রেট কী
+app.secret_key = 'your_secret_key_here'
 
 # Configuration
 app.config['UPLOAD_FOLDER_VIDEOS'] = 'uploads/videos'
 app.config['UPLOAD_FOLDER_IMAGES'] = 'uploads/images'
 app.config['LINKS_FILE'] = 'link.json'
-app.config['ITEMS_PER_PAGE'] = 20
+app.config['ITEMS_PER_PAGE'] = 10
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['ALLOWED_EXTENSIONS_VIDEO'] = {'mp4', 'avi', 'mov', 'mkv'}
 app.config['ALLOWED_EXTENSIONS_IMAGE'] = {'jpg', 'jpeg', 'png', 'gif', 'heic'}
@@ -48,6 +48,62 @@ def get_bangladesh_time():
     bd_tz = pytz.timezone("Asia/Dhaka")
     return datetime.now(bd_tz).strftime("%Y-%m-%d %I:%M %p")
 
+def process_file_upload(file, client_ip):
+    try:
+        if file.filename == '':
+            return {'error': 'Empty file'}
+
+        if not allowed_file(file.filename):
+            return {'error': 'Invalid file type'}
+
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        unique_id = generate_unique_id()
+        new_filename = f"{unique_id}.{ext}"
+        upload_time = get_bangladesh_time()
+
+        if ext == 'heic':
+            try:
+                heif_file = pyheif.read(file.stream)
+                image = Image.frombytes(
+                    heif_file.mode,
+                    heif_file.size,
+                    heif_file.data,
+                    "raw",
+                    heif_file.mode,
+                    heif_file.stride,
+                )
+                new_filename = f"{unique_id}.jpg"
+                image.save(os.path.join(app.config['UPLOAD_FOLDER_IMAGES'], new_filename), "JPEG")
+                file_type = 'image'
+            except Exception as e:
+                return {'error': f'HEIC conversion failed: {str(e)}'}
+        else:
+            file_type = 'video' if ext in app.config['ALLOWED_EXTENSIONS_VIDEO'] else 'image'
+            folder = app.config['UPLOAD_FOLDER_VIDEOS'] if file_type == 'video' else app.config['UPLOAD_FOLDER_IMAGES']
+            file.save(os.path.join(folder, new_filename))
+
+        file_url = url_for(
+            'serve_file',
+            folder=('videos' if file_type == 'video' else 'images'),
+            filename=new_filename,
+            _external=True
+        )
+
+        links = load_links()
+        links.insert(0, {
+            "url": file_url,
+            "type": file_type,
+            "id": unique_id,
+            "time": upload_time,
+            "ip": client_ip
+        })
+        save_links(links)
+
+        return {'url': file_url, 'type': file_type}
+
+    except Exception as e:
+        return {'error': f'Internal server error: {str(e)}'}
+
 @app.route('/')
 def index():
     return render_template('upload.html')
@@ -58,52 +114,25 @@ def handle_upload():
         return jsonify({'error': 'No file selected'}), 400
 
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'Empty file'}), 400
+    client_ip = request.remote_addr
 
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file type'}), 400
+    result = process_file_upload(file, client_ip)
+    if 'error' in result:
+        return jsonify({'error': result['error']}), 400
+    return jsonify({'url': result['url'], 'type': result['type']})
 
-    ext = file.filename.rsplit('.', 1)[1].lower()
-    unique_id = generate_unique_id()
-    new_filename = f"{unique_id}.{ext}"
-    client_ip = request.remote_addr  # IP Address
-    upload_time = get_bangladesh_time()  # BD Time
+@app.route('/api', methods=['POST'])
+def handle_api_upload():
+    if 'file' not in request.files:
+        return jsonify({'status': 'fail', 'link': None}), 400
 
-    if ext == 'heic':
-        try:
-            heif_file = pyheif.read(file.stream)
-            image = Image.frombytes(
-                heif_file.mode,
-                heif_file.size,
-                heif_file.data,
-                "raw",
-                heif_file.mode,
-                heif_file.stride,
-            )
-            new_filename = f"{unique_id}.jpg"
-            image.save(os.path.join(app.config['UPLOAD_FOLDER_IMAGES'], new_filename), "JPEG")
-            file_type = 'image'
-        except Exception as e:
-            return jsonify({'error': f'HEIC conversion failed: {str(e)}'}), 500
-    else:
-        file_type = 'video' if ext in app.config['ALLOWED_EXTENSIONS_VIDEO'] else 'image'
-        folder = app.config['UPLOAD_FOLDER_VIDEOS'] if file_type == 'video' else app.config['UPLOAD_FOLDER_IMAGES']
-        file.save(os.path.join(folder, new_filename))
+    file = request.files['file']
+    client_ip = request.remote_addr
 
-    file_url = url_for(
-        'serve_file',
-        folder=('videos' if file_type == 'video' else 'images'),
-        filename=new_filename,
-        _external=True
-    )
-
-    # Save link with time and IP
-    links = load_links()
-    links.insert(0, {"url": file_url, "type": file_type, "id": unique_id, "time": upload_time, "ip": client_ip})
-    save_links(links)
-
-    return jsonify({'url': file_url, 'type': file_type})
+    result = process_file_upload(file, client_ip)
+    if 'error' in result:
+        return jsonify({'status': 'fail', 'link': None}), 400
+    return jsonify({'status': 'success', 'link': result['url']})
 
 @app.route('/uploads/<folder>/<filename>')
 def serve_file(folder, filename):
@@ -137,13 +166,11 @@ def delete_link(link_id):
         flash('Link not found!', 'error')
         return redirect(url_for('get_links_html'))
 
-    # ফাইল পাথ তৈরি
     url_parts = link_to_delete['url'].split('/')
     filename = url_parts[-1]
     folder_type = 'VIDEOS' if link_to_delete['type'] == 'video' else 'IMAGES'
     file_path = os.path.join(app.config[f'UPLOAD_FOLDER_{folder_type}'], filename)
 
-    # ফাইল ডিলিট
     try:
         os.remove(file_path)
     except Exception as e:
@@ -151,7 +178,6 @@ def delete_link(link_id):
         flash('Error deleting file!', 'error')
         return redirect(url_for('get_links_html'))
 
-    # লিঙ্ক লিস্ট আপডেট
     new_links = [link for link in links if link['id'] != link_id]
     save_links(new_links)
 
@@ -162,13 +188,100 @@ def delete_link(link_id):
 def ping():
     return jsonify({"status": "alive"})
 
-# 404 Error Handler
 @app.errorhandler(404)
 def page_not_found(error):
     return render_template('404.html'), 404
 
+@app.route('/cloud', methods=['GET', 'POST'])
+def cloud_upload():
+    if request.method == 'POST':
+        url = request.form.get('url')
+        if not url:
+            flash('Please provide a valid URL', 'error')
+            return redirect(url_for('cloud_upload'))
+        
+        try:
+            filename = url.split('/')[-1].split('?')[0]
+            if '.' not in filename:
+                flash('URL must point to a file with extension', 'error')
+                return redirect(url_for('cloud_upload'))
+            
+            ext = filename.rsplit('.', 1)[1].lower()
+            if ext not in app.config['ALLOWED_EXTENSIONS_VIDEO'] | app.config['ALLOWED_EXTENSIONS_IMAGE']:
+                flash('File type not allowed', 'error')
+                return redirect(url_for('cloud_upload'))
+            
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            
+            file_type = 'video' if ext in app.config['ALLOWED_EXTENSIONS_VIDEO'] else 'image'
+            folder = app.config['UPLOAD_FOLDER_VIDEOS'] if file_type == 'video' else app.config['UPLOAD_FOLDER_IMAGES']
+            
+            unique_id = generate_unique_id()
+            new_filename = f"{unique_id}.{ext}"
+            file_path = os.path.join(folder, new_filename)
+            
+            with open(file_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            if ext == 'heic':
+                try:
+                    with open(file_path, 'rb') as f:
+                        heif_file = pyheif.read(f.read())
+                    image = Image.frombytes(
+                        heif_file.mode,
+                        heif_file.size,
+                        heif_file.data,
+                        "raw",
+                        heif_file.mode,
+                        heif_file.stride,
+                    )
+                    new_filename = f"{unique_id}.jpg"
+                    jpg_path = os.path.join(app.config['UPLOAD_FOLDER_IMAGES'], new_filename)
+                    image.save(jpg_path, "JPEG")
+                    os.remove(file_path)
+                    file_type = 'image'
+                    folder = app.config['UPLOAD_FOLDER_IMAGES']
+                    ext = 'jpg'
+                except Exception as e:
+                    os.remove(file_path)
+                    flash('HEIC conversion failed', 'error')
+                    return redirect(url_for('cloud_upload'))
+            
+            file_url = url_for(
+                'serve_file',
+                folder=('videos' if file_type == 'video' else 'images'),
+                filename=new_filename,
+                _external=True
+            )
+            
+            client_ip = request.remote_addr
+            upload_time = get_bangladesh_time()
+            links = load_links()
+            links.insert(0, {
+                "url": file_url,
+                "type": file_type,
+                "id": unique_id,
+                "time": upload_time,
+                "ip": client_ip
+            })
+            save_links(links)
+            
+            flash(f'File uploaded successfully! <a href="{file_url}">View File</a>', 'success')
+            return redirect(url_for('cloud_upload'))
+        
+        except requests.exceptions.RequestException as e:
+            flash(f'Error downloading file: {str(e)}', 'error')
+        except Exception as e:
+            flash(f'An error occurred: {str(e)}', 'error')
+        
+        return redirect(url_for('cloud_upload'))
+    
+    return render_template('cloud_upload.html')
+
 def keep_alive():
-    url = "https://naruto-uploader.onrender.com/ping"  # আপনার অ্যাপের URL দিয়ে পরিবর্তন করুন
+    url = "https://naruto-uploader.onrender.com/ping"
     while True:
         time.sleep(300)
         try:
