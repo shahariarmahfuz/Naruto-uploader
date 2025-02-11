@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Upload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .alert {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        form {
+            margin-top: 20px;
+        }
+        input[type="url"] {
+            width: 300px;
+            padding: 10px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .link-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .link-container a {
+            color: #007bff;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .link-container a:hover {
+            text-decoration: underline;
+        }
+        .copy-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .copy-button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cloud Upload</h1>
+    <form method="POST">
+        <input type="url" name="url" placeholder="Enter file URL" required>
+        <button type="submit">Upload</button>
+    </form>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message|safe }}
+                    {% if category == 'success' %}
+                        <div class="link-container">
+                            <a href="{{ message.split('href="')[1].split('"')[0] }}" target="_blank">
+                                {{ message.split('href="')[1].split('"')[0] }}
+                            </a>
+                            <button class="copy-button" onclick="copyToClipboard('{{ message.split('href="')[1].split('"')[0] }}')">Copy</button>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                alert('Link copied to clipboard!');
+            }, function(err) {
+                alert('Failed to copy link: ' + err);
+            });
+        }
+    </script>
+</body>
+</html>
