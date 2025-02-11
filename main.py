@@ -6,12 +6,13 @@ import string
 import json
 import pytz
 from datetime import datetime
-from flask import Flask, render_template, request, send_from_directory, url_for, jsonify
+from flask import Flask, render_template, request, send_from_directory, url_for, jsonify, redirect, flash
 from PIL import Image
 import pyheif
 from threading import Thread
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'  # ফ্লাস্কের জন্য সিক্রেট কী
 
 # Configuration
 app.config['UPLOAD_FOLDER_VIDEOS'] = 'uploads/videos'
@@ -113,7 +114,7 @@ def serve_file(folder, filename):
 def get_links_html():
     page = request.args.get('page', 1, type=int)
     links = load_links()
-    
+
     start = (page - 1) * app.config['ITEMS_PER_PAGE']
     end = start + app.config['ITEMS_PER_PAGE']
     paginated_links = links[start:end]
@@ -127,9 +128,44 @@ def get_links_html():
                            next_page=next_page, 
                            prev_page=prev_page)
 
+@app.route('/delete/<string:link_id>', methods=['POST'])
+def delete_link(link_id):
+    links = load_links()
+    link_to_delete = next((link for link in links if link['id'] == link_id), None)
+    
+    if not link_to_delete:
+        flash('Link not found!', 'error')
+        return redirect(url_for('get_links_html'))
+
+    # ফাইল পাথ তৈরি
+    url_parts = link_to_delete['url'].split('/')
+    filename = url_parts[-1]
+    folder_type = 'VIDEOS' if link_to_delete['type'] == 'video' else 'IMAGES'
+    file_path = os.path.join(app.config[f'UPLOAD_FOLDER_{folder_type}'], filename)
+
+    # ফাইল ডিলিট
+    try:
+        os.remove(file_path)
+    except Exception as e:
+        print(f"Error deleting file: {str(e)}")
+        flash('Error deleting file!', 'error')
+        return redirect(url_for('get_links_html'))
+
+    # লিঙ্ক লিস্ট আপডেট
+    new_links = [link for link in links if link['id'] != link_id]
+    save_links(new_links)
+
+    flash('File deleted successfully!', 'success')
+    return redirect(url_for('get_links_html'))
+
 @app.route('/ping', methods=['GET'])
 def ping():
     return jsonify({"status": "alive"})
+
+# 404 Error Handler
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template('404.html'), 404
 
 def keep_alive():
     url = "https://naruto-uploader.onrender.com/ping"  # আপনার অ্যাপের URL দিয়ে পরিবর্তন করুন
