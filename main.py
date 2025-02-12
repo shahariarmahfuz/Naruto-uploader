@@ -10,8 +10,6 @@ from flask import Flask, render_template, request, send_from_directory, url_for,
 from PIL import Image
 import pyheif
 from threading import Thread
-import subprocess
-import shutil
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -22,7 +20,7 @@ app.config['UPLOAD_FOLDER_IMAGES'] = 'uploads/images'
 app.config['LINKS_FILE'] = 'link.json'
 app.config['ITEMS_PER_PAGE'] = 10
 app.config['PREFERRED_URL_SCHEME'] = 'https'
-app.config['ALLOWED_EXTENSIONS_VIDEO'] = {'mp4', 'avi', 'mov', 'mkv', 'm3u8'}
+app.config['ALLOWED_EXTENSIONS_VIDEO'] = {'mp4', 'avi', 'mov', 'mkv'}
 app.config['ALLOWED_EXTENSIONS_IMAGE'] = {'jpg', 'jpeg', 'png', 'gif', 'heic'}
 
 os.makedirs(app.config['UPLOAD_FOLDER_VIDEOS'], exist_ok=True)
@@ -82,35 +80,7 @@ def process_file_upload(file, client_ip):
         else:
             file_type = 'video' if ext in app.config['ALLOWED_EXTENSIONS_VIDEO'] else 'image'
             folder = app.config['UPLOAD_FOLDER_VIDEOS'] if file_type == 'video' else app.config['UPLOAD_FOLDER_IMAGES']
-            original_path = os.path.join(folder, new_filename)
-            file.save(original_path)
-
-            # Convert video to HLS format
-            if file_type == 'video' and ext != 'm3u8':  # Skip conversion if already HLS
-                output_dir = os.path.join(folder, unique_id)
-                os.makedirs(output_dir, exist_ok=True)
-                output_playlist = os.path.join(output_dir, 'playlist.m3u8')
-
-                try:
-                    subprocess.run([
-                        'ffmpeg',
-                        '-i', original_path,
-                        '-c', 'copy',
-                        '-hls_time', '10',
-                        '-hls_list_size', '0',
-                        '-f', 'hls',
-                        output_playlist
-                    ], check=True)
-                    os.remove(original_path)  # Delete original video
-                    new_filename = f"{unique_id}/playlist.m3u8"
-                except subprocess.CalledProcessError as e:
-                    os.remove(original_path)
-                    shutil.rmtree(output_dir, ignore_errors=True)
-                    return {'error': f'Video conversion failed: {str(e)}'}
-                except Exception as e:
-                    os.remove(original_path)
-                    shutil.rmtree(output_dir, ignore_errors=True)
-                    return {'error': f'Video processing error: {str(e)}'}
+            file.save(os.path.join(folder, new_filename))
 
         file_url = url_for(
             'serve_file',
@@ -191,7 +161,7 @@ def get_links_html():
 def delete_link(link_id):
     links = load_links()
     link_to_delete = next((link for link in links if link['id'] == link_id), None)
-
+    
     if not link_to_delete:
         flash('Link not found!', 'error')
         return redirect(url_for('get_links_html'))
@@ -199,16 +169,10 @@ def delete_link(link_id):
     url_parts = link_to_delete['url'].split('/')
     filename = url_parts[-1]
     folder_type = 'VIDEOS' if link_to_delete['type'] == 'video' else 'IMAGES'
+    file_path = os.path.join(app.config[f'UPLOAD_FOLDER_{folder_type}'], filename)
 
     try:
-        if link_to_delete['type'] == 'video':
-            # Extract directory from filename (e.g., 'unique_id/playlist.m3u8')
-            directory_name = filename.split('/')[0]
-            directory_path = os.path.join(app.config['UPLOAD_FOLDER_VIDEOS'], directory_name)
-            shutil.rmtree(directory_path, ignore_errors=True)
-        else:
-            file_path = os.path.join(app.config[f'UPLOAD_FOLDER_{folder_type}'], filename)
-            os.remove(file_path)
+        os.remove(file_path)
     except Exception as e:
         print(f"Error deleting file: {str(e)}")
         flash('Error deleting file!', 'error')
@@ -235,7 +199,7 @@ def cloud_upload():
         if not url:
             flash('Please provide a valid URL', 'error')
             return redirect(url_for('cloud_upload'))
-
+        
         try:
             filename = url.split('/')[-1].split('?')[0]
             if '.' not in filename:
@@ -313,7 +277,7 @@ def cloud_upload():
             flash(f'An error occurred: {str(e)}', 'error')
         
         return redirect(url_for('cloud_upload'))
-
+    
     return render_template('cloud_upload.html')
 
 def keep_alive():
