@@ -20,7 +20,7 @@ app.config['UPLOAD_FOLDER_IMAGES'] = 'uploads/images'
 app.config['LINKS_FILE'] = 'link.json'
 app.config['ITEMS_PER_PAGE'] = 10
 app.config['PREFERRED_URL_SCHEME'] = 'https'
-app.config['ALLOWED_EXTENSIONS_VIDEO'] = {'mp4', 'avi', 'mov', 'mkv'}
+app.config['ALLOWED_EXTENSIONS_VIDEO'] = {'mp4', 'avi', 'mov', 'mkv', 'm3u8'}
 app.config['ALLOWED_EXTENSIONS_IMAGE'] = {'jpg', 'jpeg', 'png', 'gif', 'heic'}
 
 os.makedirs(app.config['UPLOAD_FOLDER_VIDEOS'], exist_ok=True)
